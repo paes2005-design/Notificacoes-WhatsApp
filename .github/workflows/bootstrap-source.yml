@@ -1,0 +1,129 @@
+name: Bootstrap Cliente Source
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout novo repositório
+        uses: actions/checkout@v4
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android SDK 35
+        run: sdkmanager "platforms;android-35" "build-tools;35.0.0"
+
+      - name: Setup Gradle 8.9
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+
+      - name: Recuperar fonte cliente legado uma única vez
+        run: |
+          set -euo pipefail
+          LEGACY_COMMIT="826072e98d10048c86a3313e47ea4b0aeca06a89"
+          curl -L --fail "https://github.com/paes2005-design/Rotinas_Family/archive/${LEGACY_COMMIT}.zip" -o legacy.zip
+          unzip -q legacy.zip -d legacy
+          LEGACY="legacy/Rotinas_Family-${LEGACY_COMMIT}"
+
+          cat "$LEGACY"/build-v03-parts/project.b64.* | base64 --decode > monitor-v03.zip
+          unzip -q monitor-v03.zip -d buildsrc
+
+          mv buildsrc/Monitor_WhatsApp_v0.3 buildsrc/Monitor_WhatsApp_v0.4
+          cat "$LEGACY"/build-v04-delta/v04.patch.gz.b64.part.* > v04.patch.gz.b64
+          base64 --decode v04.patch.gz.b64 | gzip -d > v04.patch
+          (cd buildsrc && patch -p1 < ../v04.patch)
+
+          mv buildsrc/Monitor_WhatsApp_v0.4 buildsrc/Monitor_WhatsApp_v0.5
+          cat "$LEGACY"/build-v05-delta/v05.patch.gz.b64.part.* > v05.patch.gz.b64
+          base64 --decode v05.patch.gz.b64 | gzip -d > v05.patch
+          (cd buildsrc/Monitor_WhatsApp_v0.5 && patch -p1 < ../../v05.patch)
+
+          mv buildsrc/Monitor_WhatsApp_v0.5 buildsrc/Monitor_WhatsApp_v0.7
+          base64 --decode "$LEGACY"/build-v07-delta/v07.patch.gz.b64 | gzip -d > v07.patch
+          (cd buildsrc/Monitor_WhatsApp_v0.7 && patch -p2 < ../../v07.patch)
+
+          cat "$LEGACY"/build-client-v1/client-v1.patch.gz.b64.part.* > client-v1.patch.gz.b64
+          base64 --decode client-v1.patch.gz.b64 | gzip -d > client-v1.patch
+          (cd buildsrc/Monitor_WhatsApp_v0.7 && patch -p1 < ../../client-v1.patch)
+          mv buildsrc/Monitor_WhatsApp_v0.7 buildsrc/Notificacoes-WhatsApp
+
+          base64 --decode "$LEGACY"/build-v04-delta/test-signing.jks.b64 > buildsrc/Notificacoes-WhatsApp/app/test-signing.jks
+          test -s buildsrc/Notificacoes-WhatsApp/app/test-signing.jks
+          grep -Fq "applicationId 'com.monitorwhatsapp.client'" buildsrc/Notificacoes-WhatsApp/app/build.gradle
+          grep -Fq "versionName '1.0.0-client'" buildsrc/Notificacoes-WhatsApp/app/build.gradle
+          grep -Fq "class ClientMainActivity" buildsrc/Notificacoes-WhatsApp/app/src/main/java/com/monitorwhatsapp/app/ClientMainActivity.java
+
+      - name: Validar compilação antes da migração
+        working-directory: buildsrc/Notificacoes-WhatsApp
+        run: gradle assembleDebug --stacktrace
+
+      - name: Copiar código Android para a raiz
+        run: |
+          set -euo pipefail
+          rsync -a --delete \
+            --exclude='.git/' \
+            --exclude='.github/' \
+            --exclude='README.md' \
+            --exclude='.gradle/' \
+            --exclude='build/' \
+            --exclude='app/build/' \
+            buildsrc/Notificacoes-WhatsApp/ ./
+
+          cat > .gitignore <<'EOF'
+          .gradle/
+          **/build/
+          local.properties
+          *.iml
+          .idea/
+          EOF
+
+          cat > README.md <<'EOF'
+          # Notificações WhatsApp
+
+          Aplicativo Android que monitora notificações do WhatsApp, filtra assuntos importantes e gera alertas personalizados após autorização explícita do usuário ao acesso de notificações.
+
+          ## Versão Cliente 1.0
+
+          - Grupo/conversa opcional
+          - Pessoa/remetente opcional
+          - Palavras importantes opcionais
+          - Histórico de alertas
+          - Abertura da conversa pelo PendingIntent fornecido pelo WhatsApp
+          - NotificationListenerService e recuperação em segundo plano
+          - Sem login/QR Code do WhatsApp
+          - Sem leitura do banco privado do WhatsApp
+          - Sem Accessibility Service
+          - Sem permissão INTERNET
+
+          O `test-signing.jks` presente no projeto é somente uma chave fixa de desenvolvimento para manter upgrades dos APKs de teste. Antes de publicação, ela deverá ser substituída por uma chave privada de release armazenada com segurança.
+          EOF
+
+          rm -rf legacy legacy.zip monitor-v03.zip buildsrc v04.patch* v05.patch* v07.patch* client-v1.patch*
+
+      - name: Commitar fonte migrado
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "Nenhuma alteração nova para commitar."
+          else
+            git commit -m "feat: migrate Notificacoes WhatsApp Cliente v1.0 source"
+            git push origin main
+          fi
