@@ -22,6 +22,28 @@ public class TextMatcher {
 
     public static boolean groupMatches(String groupHint, String configuredGroup) {
         if (configuredGroup == null || configuredGroup.trim().isEmpty()) return true;
-        return normalize(groupHint).contains(normalize(configuredGroup));
+
+        String haystack = normalize(groupHint);
+        String configured = normalize(configuredGroup);
+
+        // Mantém o comportamento original para um único valor e também protege
+        // nomes reais que possuam vírgula: primeiro tentamos a expressão inteira.
+        if (!configured.isEmpty() && haystack.contains(configured)) return true;
+
+        // Permite listas separadas por vírgula. Isso é especialmente importante
+        // para o filtro de remetentes, por exemplo:
+        // "Osni Corintiano, Amauri - São Paulino, João Paulo - Zeus".
+        // Basta qualquer um dos itens coincidir com o remetente recebido.
+        if (configuredGroup.contains(",")) {
+            String[] options = configuredGroup.split(",");
+            for (String option : options) {
+                String normalizedOption = normalize(option);
+                if (!normalizedOption.isEmpty() && haystack.contains(normalizedOption)) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 }
