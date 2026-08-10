@@ -1,18 +1,15 @@
-name: Bootstrap Cliente Source
+name: Export Cliente Source
 
 on:
   push:
     branches: [main]
   workflow_dispatch:
 
-permissions:
-  contents: write
-
 jobs:
-  migrate:
+  export-source:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout novo repositório
+      - name: Checkout
         uses: actions/checkout@v4
 
       - name: Setup Java 17
@@ -32,7 +29,7 @@ jobs:
         with:
           gradle-version: '8.9'
 
-      - name: Recuperar fonte cliente legado uma única vez
+      - name: Reconstruct client source
         run: |
           set -euo pipefail
           LEGACY_COMMIT="826072e98d10048c86a3313e47ea4b0aeca06a89"
@@ -66,114 +63,19 @@ jobs:
           test -s buildsrc/Notificacoes-WhatsApp/app/test-signing.jks
           grep -Fq "applicationId 'com.monitorwhatsapp.client'" buildsrc/Notificacoes-WhatsApp/app/build.gradle
           grep -Fq "versionName '1.0.0-client'" buildsrc/Notificacoes-WhatsApp/app/build.gradle
-          grep -Fq "class ClientMainActivity" buildsrc/Notificacoes-WhatsApp/app/src/main/java/com/monitorwhatsapp/app/ClientMainActivity.java
 
-      - name: Validar compilação antes da migração
+      - name: Validate client source
         working-directory: buildsrc/Notificacoes-WhatsApp
         run: gradle assembleDebug --stacktrace
 
-      - name: Copiar código Android para a raiz
+      - name: Pack source
         run: |
-          set -euo pipefail
-          rsync -a \
-            --exclude='.git/' \
-            --exclude='.github/' \
-            --exclude='README.md' \
-            --exclude='.gradle/' \
-            --exclude='build/' \
-            --exclude='app/build/' \
-            buildsrc/Notificacoes-WhatsApp/ ./
+          rm -rf buildsrc/Notificacoes-WhatsApp/.gradle buildsrc/Notificacoes-WhatsApp/app/build buildsrc/Notificacoes-WhatsApp/build
+          tar -czf Notificacoes-WhatsApp-Cliente-v1.0-source.tar.gz -C buildsrc Notificacoes-WhatsApp
 
-          cat > .gitignore <<'EOF'
-          .gradle/
-          **/build/
-          local.properties
-          *.iml
-          .idea/
-          EOF
-
-          cat > README.md <<'EOF'
-          # Notificações WhatsApp
-
-          Aplicativo Android que monitora notificações do WhatsApp, filtra assuntos importantes e gera alertas personalizados após autorização explícita do usuário ao acesso de notificações.
-
-          ## Versão Cliente 1.0
-
-          - Grupo/conversa opcional
-          - Pessoa/remetente opcional
-          - Palavras importantes opcionais
-          - Histórico de alertas
-          - Abertura da conversa pelo PendingIntent fornecido pelo WhatsApp
-          - NotificationListenerService e recuperação em segundo plano
-          - Sem login/QR Code do WhatsApp
-          - Sem leitura do banco privado do WhatsApp
-          - Sem Accessibility Service
-          - Sem permissão INTERNET
-
-          O `test-signing.jks` presente no projeto é somente uma chave fixa de desenvolvimento para manter upgrades dos APKs de teste. Antes de publicação, ela deverá ser substituída por uma chave privada de release armazenada com segurança.
-          EOF
-
-          cat > .github/workflows/build-apk.yml <<'EOF'
-          name: Build APK
-
-          on:
-            push:
-              branches: [main]
-            workflow_dispatch:
-
-          jobs:
-            build:
-              runs-on: ubuntu-latest
-              steps:
-                - name: Checkout
-                  uses: actions/checkout@v4
-
-                - name: Setup Java 17
-                  uses: actions/setup-java@v4
-                  with:
-                    distribution: temurin
-                    java-version: '17'
-
-                - name: Setup Android SDK
-                  uses: android-actions/setup-android@v3
-
-                - name: Install Android SDK 35
-                  run: sdkmanager "platforms;android-35" "build-tools;35.0.0"
-
-                - name: Setup Gradle 8.9
-                  uses: gradle/actions/setup-gradle@v4
-                  with:
-                    gradle-version: '8.9'
-
-                - name: Build APK
-                  run: gradle assembleDebug --stacktrace
-
-                - name: Validate and rename APK
-                  run: |
-                    cp app/build/outputs/apk/debug/app-debug.apk Notificacoes-WhatsApp-Cliente-v1.0-debug.apk
-                    unzip -t Notificacoes-WhatsApp-Cliente-v1.0-debug.apk
-                    sha256sum Notificacoes-WhatsApp-Cliente-v1.0-debug.apk
-
-                - name: Upload APK
-                  uses: actions/upload-artifact@v4
-                  with:
-                    name: Notificacoes-WhatsApp-Cliente-v1.0-debug
-                    path: Notificacoes-WhatsApp-Cliente-v1.0-debug.apk
-                    if-no-files-found: error
-          EOF
-
-          rm -rf legacy legacy.zip monitor-v03.zip buildsrc v04.patch* v05.patch* v07.patch* client-v1.patch*
-          rm -f .github/workflows/bootstrap-source.yml
-
-      - name: Commitar fonte migrado
-        run: |
-          set -euo pipefail
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -A
-          if git diff --cached --quiet; then
-            echo "Nenhuma alteração nova para commitar."
-          else
-            git commit -m "feat: migrate Notificacoes WhatsApp Cliente v1.0 source"
-            git push origin main
-          fi
+      - name: Upload source artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Notificacoes-WhatsApp-Cliente-v1.0-source
+          path: Notificacoes-WhatsApp-Cliente-v1.0-source.tar.gz
+          if-no-files-found: error
