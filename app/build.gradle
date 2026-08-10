@@ -2,22 +2,41 @@ plugins {
     id 'com.android.application'
 }
 
+def uploadKeystorePath = System.getenv('PLAY_UPLOAD_KEYSTORE_PATH')
+def uploadStorePassword = System.getenv('PLAY_UPLOAD_STORE_PASSWORD')
+def uploadKeyAlias = System.getenv('PLAY_UPLOAD_KEY_ALIAS')
+def uploadKeyPassword = System.getenv('PLAY_UPLOAD_KEY_PASSWORD')
+
 android {
     namespace 'com.monitorwhatsapp.app'
-    compileSdk 35
+    compileSdk 36
 
     defaultConfig {
         applicationId 'com.monitorwhatsapp.client'
         minSdk 26
-        targetSdk 35
+        targetSdk 36
         versionCode 100
         versionName '1.0.0-client'
+    }
+
+    signingConfigs {
+        release {
+            if (uploadKeystorePath) {
+                storeFile file(uploadKeystorePath)
+                storePassword uploadStorePassword
+                keyAlias uploadKeyAlias
+                keyPassword uploadKeyPassword
+            }
+        }
     }
 
     buildTypes {
         debug {
         }
         release {
+            if (uploadKeystorePath) {
+                signingConfig signingConfigs.release
+            }
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
