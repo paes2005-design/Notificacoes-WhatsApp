@@ -54,18 +54,18 @@ jobs:
           set -euo pipefail
           APK="app/build/outputs/apk/release/app-release.apk"
           test -s "$APK"
-          cp "$APK" Notificacoes-WhatsApp-Cliente-v1.0-firebase.apk
-          unzip -t Notificacoes-WhatsApp-Cliente-v1.0-firebase.apk
-          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose --print-certs Notificacoes-WhatsApp-Cliente-v1.0-firebase.apk
-          sha256sum Notificacoes-WhatsApp-Cliente-v1.0-firebase.apk
+          cp "$APK" Notificacoes-WhatsApp-Cliente-v1.0.1-firebase.apk
+          unzip -t Notificacoes-WhatsApp-Cliente-v1.0.1-firebase.apk
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose --print-certs Notificacoes-WhatsApp-Cliente-v1.0.1-firebase.apk
+          sha256sum Notificacoes-WhatsApp-Cliente-v1.0.1-firebase.apk
 
       - name: Remove signing material
         if: always()
         run: rm -f app/test-signing.jks
 
-      - name: Upload Firebase APK
+      - name: Upload Firebase APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Notificacoes-WhatsApp-Cliente-v1.0-firebase
-          path: Notificacoes-WhatsApp-Cliente-v1.0-firebase.apk
+          name: Notificacoes-WhatsApp-Cliente-v1.0.1-firebase
+          path: Notificacoes-WhatsApp-Cliente-v1.0.1-firebase.apk
           if-no-files-found: error
