@@ -9,6 +9,7 @@ on:
       - 'build.gradle'
       - 'settings.gradle'
       - 'gradle.properties'
+      - '.github/test-signing.jks.b64'
       - '.github/workflows/build-firebase-apk.yml'
 
 jobs:
@@ -35,21 +36,36 @@ jobs:
         with:
           gradle-version: '8.11.1'
 
-      - name: Build unsigned release APK
+      - name: Restore fixed Firebase test key
+        run: |
+          base64 --decode .github/test-signing.jks.b64 > app/test-signing.jks
+          test -s app/test-signing.jks
+
+      - name: Build signed release APK for Firebase testing
+        env:
+          PLAY_UPLOAD_KEYSTORE_PATH: test-signing.jks
+          PLAY_UPLOAD_STORE_PASSWORD: alerta-test-2026
+          PLAY_UPLOAD_KEY_ALIAS: alerta-test
+          PLAY_UPLOAD_KEY_PASSWORD: alerta-test-2026
         run: gradle assembleRelease --stacktrace
 
-      - name: Collect APK
+      - name: Validate signed APK
         run: |
           set -euo pipefail
-          APK=$(find app/build/outputs/apk/release -maxdepth 1 -name '*.apk' | head -1)
-          test -n "$APK"
+          APK="app/build/outputs/apk/release/app-release.apk"
           test -s "$APK"
-          cp "$APK" Notificacoes-WhatsApp-Cliente-v1.0-release-unsigned.apk
-          sha256sum Notificacoes-WhatsApp-Cliente-v1.0-release-unsigned.apk
+          cp "$APK" Notificacoes-WhatsApp-Cliente-v1.0-firebase.apk
+          unzip -t Notificacoes-WhatsApp-Cliente-v1.0-firebase.apk
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose --print-certs Notificacoes-WhatsApp-Cliente-v1.0-firebase.apk
+          sha256sum Notificacoes-WhatsApp-Cliente-v1.0-firebase.apk
 
-      - name: Upload unsigned release APK
+      - name: Remove signing material
+        if: always()
+        run: rm -f app/test-signing.jks
+
+      - name: Upload Firebase APK
         uses: actions/upload-artifact@v4
         with:
-          name: Notificacoes-WhatsApp-Cliente-v1.0-release-unsigned
-          path: Notificacoes-WhatsApp-Cliente-v1.0-release-unsigned.apk
+          name: Notificacoes-WhatsApp-Cliente-v1.0-firebase
+          path: Notificacoes-WhatsApp-Cliente-v1.0-firebase.apk
           if-no-files-found: error
