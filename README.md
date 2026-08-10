@@ -1,18 +1,18 @@
 # Notificações WhatsApp
 
-Aplicativo Android para monitorar notificações do WhatsApp, filtrar assuntos importantes e gerar alertas personalizados.
+Aplicativo Android para monitorar notificações do WhatsApp e destacar assuntos importantes após autorização explícita do usuário ao acesso de notificações.
 
-## Versão Cliente
+## Versão Cliente 1.0
 
-A versão cliente permite configurar:
-
-- conversa/grupo monitorado;
-- pessoa/remetente específico (opcional);
-- palavras importantes (opcional);
-- histórico dos alertas;
+- conversa/grupo opcional;
+- pessoa/remetente opcional;
+- palavras importantes opcionais;
+- histórico de alertas;
 - abertura da conversa pelo PendingIntent fornecido pelo WhatsApp;
-- monitoramento em segundo plano por NotificationListenerService.
+- NotificationListenerService com recuperação em segundo plano;
+- sem login ou QR Code do WhatsApp;
+- sem leitura do banco privado do WhatsApp;
+- sem AccessibilityService;
+- sem permissão INTERNET.
 
-O aplicativo trabalha somente com notificações que o Android entrega após o usuário conceder explicitamente o acesso às notificações. Não utiliza login do WhatsApp, QR Code, banco privado do WhatsApp nem Accessibility Service.
-
-> Projeto em desenvolvimento. A chave incluída nas versões de teste é apenas para builds de desenvolvimento e não deve ser usada como assinatura de produção.
+A assinatura de produção não é armazenada no repositório. Antes da publicação, uma chave privada de release deverá ser configurada com segurança.

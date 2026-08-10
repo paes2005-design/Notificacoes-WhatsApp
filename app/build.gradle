@@ -1,0 +1,29 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'com.monitorwhatsapp.app'
+    compileSdk 35
+
+    defaultConfig {
+        applicationId 'com.monitorwhatsapp.client'
+        minSdk 26
+        targetSdk 35
+        versionCode 100
+        versionName '1.0.0-client'
+    }
+
+    buildTypes {
+        debug {
+        }
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+}
+
+dependencies {
+    implementation 'androidx.core:core:1.15.0'
+}
