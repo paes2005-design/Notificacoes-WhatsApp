@@ -6,11 +6,18 @@ import java.util.Locale;
 public class TextMatcher {
     public static String normalize(String value) {
         if (value == null) return "";
-        String normalized = Normalizer.normalize(value, Normalizer.Form.NFD)
-                .replaceAll("\\p{InCombiningDiacriticalMarks}+", "")
+
+        String cleaned = value
+                .replace('\u00A0', ' ')
+                .replace('\u2007', ' ')
+                .replace('\u202F', ' ')
+                .replaceAll("[\\p{Cf}\\u200B-\\u200D\\uFEFF]", " ");
+
+        return Normalizer.normalize(cleaned, Normalizer.Form.NFD)
+                .replaceAll("\\p{M}+", "")
                 .toLowerCase(Locale.ROOT)
+                .replaceAll("\\s+", " ")
                 .trim();
-        return normalized;
     }
 
     public static boolean containsKeyword(String haystack, String keyword) {
@@ -25,25 +32,40 @@ public class TextMatcher {
 
         String haystack = normalize(groupHint);
         String configured = normalize(configuredGroup);
+        boolean compositeHaystack = groupHint != null && groupHint.contains(" | ");
 
-        // Mantém o comportamento original para um único valor e também protege
-        // nomes reais que possuam vírgula: primeiro tentamos a expressão inteira.
-        if (!configured.isEmpty() && haystack.contains(configured)) return true;
+        // O serviço usa este matcher em dois cenários:
+        // 1) grupo: um haystack composto com título/subtexto/conversa -> busca por trecho;
+        // 2) remetente/conversa direta: um único nome -> comparação exata normalizada.
+        if (matchesValue(haystack, configured, compositeHaystack)) return true;
 
-        // Permite listas separadas por vírgula. Isso é especialmente importante
-        // para o filtro de remetentes, por exemplo:
-        // "Osni Corintiano, Amauri - São Paulino, João Paulo - Zeus".
-        // Basta qualquer um dos itens coincidir com o remetente recebido.
-        if (configuredGroup.contains(",")) {
-            String[] options = configuredGroup.split(",");
+        // Listas de remetentes podem ser separadas por vírgula, ponto e vírgula ou quebra de linha.
+        // A tentativa da expressão inteira acima preserva nomes reais que contenham vírgula.
+        if (configuredGroup.contains(",") || configuredGroup.contains(";")
+                || configuredGroup.contains("\n") || configuredGroup.contains("\r")) {
+            String[] options = configuredGroup.split("[,;\\r\\n]+");
             for (String option : options) {
                 String normalizedOption = normalize(option);
-                if (!normalizedOption.isEmpty() && haystack.contains(normalizedOption)) {
+                if (matchesValue(haystack, normalizedOption, compositeHaystack)) {
                     return true;
                 }
             }
         }
 
         return false;
+    }
+
+    private static boolean matchesValue(String haystack, String configured, boolean partialMatch) {
+        if (configured == null || configured.isEmpty()) return false;
+        if (partialMatch) return haystack.contains(configured);
+
+        // O WhatsApp pode exibir remetentes não salvos com um prefixo visual "~".
+        // Removemos apenas esse prefixo inicial nas comparações diretas.
+        return stripWhatsAppSenderPrefix(haystack).equals(stripWhatsAppSenderPrefix(configured));
+    }
+
+    private static String stripWhatsAppSenderPrefix(String value) {
+        if (value == null) return "";
+        return value.replaceFirst("^~\\s*", "").trim();
     }
 }
